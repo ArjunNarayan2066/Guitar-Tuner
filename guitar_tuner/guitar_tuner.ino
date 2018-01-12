@@ -5,10 +5,6 @@ void bubbleSort(float arr[], int size);
 float analysis (float freqList[], int avgCnt);
 void tune ();
 
-
-//clipping indicator variables
-boolean clipping = 0;
-
 //data storage variables
 byte newData = 0;
 byte prevData = 0;
@@ -36,8 +32,8 @@ byte ampThreshold = 30;//raise if you have a very noisy signal
 void setup(){
   
   Serial.begin(9600);
-  
-  pinMode(13,OUTPUT);//led indicator pin
+
+  //pinMode(12,OUTPUT);//output pin
   pinMode(12,OUTPUT);//output pin
   
   cli();//diable interrupts
@@ -111,11 +107,6 @@ ISR(ADC_vect) {//when new ADC value ready
       }
     }
   }
-    
-  if (newData == 0 || newData == 1023){//if clipping
-    PORTB |= B00100000;//set pin 13 high- turn on clipping indicator led
-    clipping = 1;//currently clipping
-  }
   
   time++;//increment timer at rate of 38.5kHz
   
@@ -131,37 +122,31 @@ ISR(ADC_vect) {//when new ADC value ready
   
 }
 
-void reset(){//clea out some variables
+void reset(){//clear out some variables
   index = 0;//reset index
   noMatch = 0;//reset match couner
   maxSlope = 0;//reset slope
 }
 
 
-void checkClipping(){//manage clipping indicator LED
-  if (clipping){//if currently clipping
-    PORTB &= B11011111;//turn off clipping indicator led
-    clipping = 0;
-  }
-}
-
 //Arjun Variables
-float freqList[20];
+int avgMax = 20;//Used as max # of values to avg
+float * freqList = new float [avgMax];
+float refFreq[6] = {329.63, 246.94, 196.00, 146.83, 110.00, 82.41};
+
 int avgCnt = 0;
 float sum = 0;
 float mean = 0;
-int avgMax = 20;//Used as max # of values to avg
 int freqMax = 400;
 int freqMin = 50;
-float refFreq[6] = {329.63, 246.94, 196.00, 146.83, 110.00, 82.41};
 
 
 void loop()
 {
- if (checkMaxAmp>ampThreshold)
+ if (checkMaxAmp>ampThreshold)//Only if loud enough to hear it 
  {
     frequency = 38462/float(period);//calculate frequency timer rate/period
-    if (frequency > freqMin && frequency < freqMax && avgCnt < avgMax)
+    if (frequency > freqMin && frequency < freqMax && avgCnt < avgMax) //Within tolerable range & still counting
     {
       freqList[avgCnt] = frequency; //Push to current list
       avgCnt ++; //Keep track of # of values pushed
@@ -170,19 +155,16 @@ void loop()
       Serial.println(" hz");
     }
   }
-  else if (avgCnt != 0)
+  else if (avgCnt != 0)//Broke streak of tolerable ranges, process compounded frequencies
   {//Process freq data here
     mean = analysis (freqList, avgCnt); //Included in attached header file
     Serial.print("Final Mean = ");
     Serial.println(mean);
     avgCnt = 0;
     tune();
-    //myStepper.setSpeed (0);
   }
   
   //delay(100);//delete this if you want
-  
-  //do other stuff here
 }
 
 int findString ()
@@ -207,8 +189,7 @@ void tune ()
 {//Tuning Down = NEGATIVE
  //Tuning Up = POSITIVE
  //Get Information About Situation
-  //int stringIndex = findString();
-  int stringIndex = 2;
+  int stringIndex = findString();
   float freq = refFreq[stringIndex];
   float diff = freq - mean;
   int threshold = 3;
@@ -229,13 +210,7 @@ void tune ()
   Serial.println(freq);
   Serial.print(" Diff = ");
   Serial.println(diff);
-
-  //runMotor (diff, tuneUp);
-  Serial.println ("Out of runMotor, finished segment");
   return;
 }
-
-int thresh = 100;
-
 
 

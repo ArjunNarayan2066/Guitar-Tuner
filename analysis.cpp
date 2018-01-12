@@ -1,4 +1,18 @@
+#include <iostream>
+#include <cmath>
+
+using namespace std;
+
 void bubbleSort(float arr[], int size);
+
+float analysis (float * freqList, int avgCnt);
+
+int main ()
+{
+	float freqList[10] = {50, 50.1, 50.2, 49, 45, 47, 51, 51.5, 52, 53};
+	printf ("mean = %f", analysis (freqList, 10));
+	return 0;
+}
 
 float analysis (float * freqList, int avgCnt)
 {
