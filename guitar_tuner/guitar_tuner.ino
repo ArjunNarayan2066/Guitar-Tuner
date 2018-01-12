@@ -1,4 +1,4 @@
-#include "analysis.c"
+#include "analysis.h"
 
 
 void bubbleSort(float arr[], int size);
@@ -177,7 +177,7 @@ void loop()
     Serial.println(mean);
     avgCnt = 0;
     tune();
-    myStepper.setSpeed (0);
+    //myStepper.setSpeed (0);
   }
   
   //delay(100);//delete this if you want
@@ -230,7 +230,7 @@ void tune ()
   Serial.print(" Diff = ");
   Serial.println(diff);
 
-  runMotor (diff, tuneUp);
+  //runMotor (diff, tuneUp);
   Serial.println ("Out of runMotor, finished segment");
   return;
 }
