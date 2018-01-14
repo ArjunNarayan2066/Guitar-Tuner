@@ -1,9 +1,24 @@
 #include "analysis.h"
+#include "notes.h"
 
+#include <LiquidCrystal.h>
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+
+byte block[8] = {
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+};
 
 void bubbleSort(float arr[], int size);
 float analysis (float freqList[], int avgCnt);
-void tune ();
+int findNote (float freq);
+void printLCD (int freqDiffThreshold, float freq);
 
 //data storage variables
 byte newData = 0;
@@ -31,9 +46,11 @@ byte ampThreshold = 30;//raise if you have a very noisy signal
 
 void setup(){
   
+  lcd.createChar(0, block);
+  lcd.begin (16, 2);
+  
   Serial.begin(9600);
-
-  //pinMode(12,OUTPUT);//output pin
+  
   pinMode(12,OUTPUT);//output pin
   
   cli();//diable interrupts
@@ -139,6 +156,7 @@ float sum = 0;
 float mean = 0;
 int freqMax = 400;
 int freqMin = 50;
+int freqDiffThreshold = 4;
 
 
 void loop()
@@ -161,56 +179,61 @@ void loop()
     Serial.print("Final Mean = ");
     Serial.println(mean);
     avgCnt = 0;
-    tune();
+    printLCD (freqDiffThreshold, mean);
   }
   
   //delay(100);//delete this if you want
 }
 
-int findString ()
-{//Grab string guitar is tuning
-  float diff = 0;
-  float bestDiff = 99999;
-  int index = 0;
-  
-  for (int i = 0; i < 6; i++)
-  {
-    diff = abs(refFreq[i] - mean);
-    if (diff < bestDiff)
-    {
-      bestDiff = diff;
-      index = i;
-    }
-  }
-  return index;
+//Tuning Down = NEGATIVE
+//Tuning Up = POSITIVE
+
+void printLCD (int freqDiffThreshold, float freq)
+{//Gather information about current situation
+ int index = findNote (freq);
+ float refFreq = atof(notes[index][0]);
+ float diff = freq - refFreq;
+ lcd.setCursor (7, 0);
+ lcd.print(notes[index][1]);
+ int squares = 7 * (abs(diff) / 9.0); //Get # of squares to print
+ if ((diff <= freqDiffThreshold) || (squares > 7)) //If Odd Cases
+ {
+    lcd.setCursor (0,1);
+    lcd.write(byte(0));
+    lcd.write(byte(0));
+    if (squares > 7) lcd.print("Out of Range");
+    else lcd.print("Note in tune");
+    lcd.write(byte(0));
+    lcd.write(byte(0));
+    return;
+ }
+ //Set up prints
+ //printS (freq, index);
+ lcd.setCursor (7,1);
+ lcd.write(byte(0));
+ lcd.write(byte(0));
+ //Get Side Squares 
+ if (diff < 0) lcd.setCursor (7 - squares, 1); //Note is flat, display on the left
+ else lcd.setCursor (9, 1);//Note is Sharp, display squares on the right
+ for (int i = 0; i < squares; i++) lcd.write(byte(0));   
 }
 
-void tune ()
-{//Tuning Down = NEGATIVE
- //Tuning Up = POSITIVE
- //Get Information About Situation
-  int stringIndex = findString();
-  float freq = refFreq[stringIndex];
-  float diff = freq - mean;
-  int threshold = 3;
-  int tuneUp = (diff > 0) ? -1: 1; 
-
-  if (abs(diff) < threshold)
+int findNote (float freq)
+{//Find Note being played
+  int index = 0;
+  for (int i = 0; i < 31; i++)//Stop right before 32 so as to never test notes[32][0], beyond bounds
   {
-    Serial.println("String is tuned");
-    return;
+    float noteLow = atof(notes[i][0]);
+    float noteHigh = atof(notes[i+1][0]);
+    if ((noteLow < freq || noteLow == freq) && (noteHigh > freq || noteHigh == freq))
+    {//We know the note is included in the range      
+      if (freq - noteLow < noteHigh - freq) index = i;
+      else index = i+1;
+    }
+    if (i == 0 && freq < noteLow) index = 0;
+    else if (i == 30 && freq > noteHigh) index = 31;
   }
-
-  //Print Known Information
-  Serial.print("Tuning String #");
-  Serial.print(stringIndex + 1);
-  Serial.print(" from frequency: ");
-  Serial.print(mean);
-  Serial.print(" to frequency: ");
-  Serial.println(freq);
-  Serial.print(" Diff = ");
-  Serial.println(diff);
-  return;
+  return index;
 }
 
 
