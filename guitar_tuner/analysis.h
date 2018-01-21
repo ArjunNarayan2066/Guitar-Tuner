@@ -25,12 +25,20 @@ float analysis (float * freqList, int avgCnt)
     }
 
     //Create new smaller list
+    float * newList = new float [newAvgCnt];
+    int index = 0;
+    while (freqList[index] == 0) index ++;
+    for (int j = 0; j < newAvgCnt; j++) newList[j] = freqList[index + j];
+    //delete freqList;
+    freqList = newList;
+    /*
     int start = (avgCnt - newAvgCnt)/2;
     for (int i = 0; i < newAvgCnt; i++)
     {
     	freqList[i] = freqList[i + start];
     	freqList[i + start] = 0;
     }
+    */
     avgCnt = newAvgCnt;
   }//Done assessing values
   

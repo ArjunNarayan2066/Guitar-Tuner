@@ -2,7 +2,7 @@
 #include "notes.h"
 
 #include <LiquidCrystal.h>
-LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+LiquidCrystal lcd(8, 11, 5, 4, 3, 2);
 
 byte block[8] = {
   B11111,
@@ -18,7 +18,10 @@ byte block[8] = {
 void bubbleSort(float arr[], int size);
 float analysis (float freqList[], int avgCnt);
 int findNote (float freq);
-void printLCD (int freqDiffThreshold, float freq);
+void printLCD (float freqDiffThreshold, float freq);
+
+//clipping indicator variables
+boolean clipping = 0;
 
 //data storage variables
 byte newData = 0;
@@ -51,6 +54,7 @@ void setup(){
   
   Serial.begin(9600);
   
+  pinMode(13,OUTPUT);//led indicator pin
   pinMode(12,OUTPUT);//output pin
   
   cli();//diable interrupts
@@ -124,6 +128,11 @@ ISR(ADC_vect) {//when new ADC value ready
       }
     }
   }
+    
+  if (newData == 0 || newData == 1023){//if clipping
+    PORTB |= B00100000;//set pin 13 high- turn on clipping indicator led
+    clipping = 1;//currently clipping
+  }
   
   time++;//increment timer at rate of 38.5kHz
   
@@ -139,29 +148,37 @@ ISR(ADC_vect) {//when new ADC value ready
   
 }
 
-void reset(){//clear out some variables
+void reset(){//clea out some variables
   index = 0;//reset index
   noMatch = 0;//reset match couner
   maxSlope = 0;//reset slope
 }
 
 
+void checkClipping(){//manage clipping indicator LED
+  if (clipping){//if currently clipping
+    PORTB &= B11011111;//turn off clipping indicator led
+    clipping = 0;
+  }
+}
+
 //Arjun Variables
-int avgMax = 20;//Used as max # of values to avg
+int avgMax = 30;//Used as max # of values to avg
 float * freqList = new float [avgMax];
-float refFreq[6] = {329.63, 246.94, 196.00, 146.83, 110.00, 82.41};
+//float refFreq[6] = {329.63, 246.94, 196.00, 146.83, 110.00, 82.41};
 
 int avgCnt = 0;
 float sum = 0;
 float mean = 0;
 int freqMax = 400;
 int freqMin = 50;
-int freqDiffThreshold = 4;
+float freqDiffThreshold = 0.35;
 
 
 void loop()
 {
- if (checkMaxAmp>ampThreshold)//Only if loud enough to hear it 
+ //Serial.println ("Going through loop");
+ if ((checkMaxAmp>ampThreshold))//Only if loud enough to hear it 
  {
     frequency = 38462/float(period);//calculate frequency timer rate/period
     if (frequency > freqMin && frequency < freqMax && avgCnt < avgMax) //Within tolerable range & still counting
@@ -170,8 +187,11 @@ void loop()
       avgCnt ++; //Keep track of # of values pushed
       //print results
       Serial.print(frequency);
-      Serial.println(" hz");
+      Serial.print(" hz");
+      Serial.print ("   AvgCnt = ");
+      Serial.println(avgCnt);
     }
+    //else Serial.println ("Finished set of 30");
   }
   else if (avgCnt != 0)//Broke streak of tolerable ranges, process compounded frequencies
   {//Process freq data here
@@ -181,23 +201,38 @@ void loop()
     avgCnt = 0;
     printLCD (freqDiffThreshold, mean);
   }
-  
-  //delay(100);//delete this if you want
+  delay(50);//delete this if you want
 }
 
 //Tuning Down = NEGATIVE
 //Tuning Up = POSITIVE
 
-void printLCD (int freqDiffThreshold, float freq)
+void printS (float freq, int index, float freqDiffThreshold)
+{
+    Serial.print ("Freq = ");
+    Serial.print (freq);
+    Serial.print ("   Note = ");
+    Serial.print (notes[index][1]);
+    Serial.print ("   Diff = ");
+    Serial.print (freq - atof(notes[index][0]));
+    Serial.print ("   FreqDiffThreshold = ");
+    Serial.print (freqDiffThreshold);
+    Serial.print("\n");
+}
+
+void printLCD (float freqDiffThreshold, float freq)
 {//Gather information about current situation
+ lcd.clear();
  int index = findNote (freq);
  float refFreq = atof(notes[index][0]);
  float diff = freq - refFreq;
  lcd.setCursor (7, 0);
  lcd.print(notes[index][1]);
- int squares = 7 * (abs(diff) / 9.0); //Get # of squares to print
- if ((diff <= freqDiffThreshold) || (squares > 7)) //If Odd Cases
+ int squares = 7 * (abs(diff) / 7.5); //Get # of squares to print
+ printS (freq, index, freqDiffThreshold);
+ if ((abs(diff) <= freqDiffThreshold) || (squares > 7)) //If Odd Cases
  {
+    Serial.print ("\nIn Odd Cases\n");
     lcd.setCursor (0,1);
     lcd.write(byte(0));
     lcd.write(byte(0));
@@ -207,15 +242,18 @@ void printLCD (int freqDiffThreshold, float freq)
     lcd.write(byte(0));
     return;
  }
- //Set up prints
- //printS (freq, index);
- lcd.setCursor (7,1);
- lcd.write(byte(0));
- lcd.write(byte(0));
- //Get Side Squares 
- if (diff < 0) lcd.setCursor (7 - squares, 1); //Note is flat, display on the left
- else lcd.setCursor (9, 1);//Note is Sharp, display squares on the right
- for (int i = 0; i < squares; i++) lcd.write(byte(0));   
+ else
+ {
+   //Set up prints
+   lcd.setCursor (7,1);
+   lcd.write(byte(0));
+   lcd.write(byte(0));
+   //Get Side Squares 
+   if (diff < 0) lcd.setCursor (7 - squares, 1); //Note is flat, display on the left
+   else lcd.setCursor (9, 1);//Note is Sharp, display squares on the right
+   for (int i = 0; i < squares; i++) lcd.write(byte(0));
+   return;
+ }
 }
 
 int findNote (float freq)
